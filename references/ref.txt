@@ -1,0 +1,8 @@
+2023/08/21
+networkの設定
+.dropout : 0.3
+.emonet_au : 12000 -> 2048 -> 512 -> 2
+.emonet_gaze : 2048 -> 512 -> 2
+.emonet_hp : 2048 -> 512 -> 2
+.integrate_net : input_dim -> 2048 -> 512 -> 2 
+.hp_input : mean pooling(len:30)

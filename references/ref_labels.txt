@@ -1,0 +1,12 @@
+2023/11/30
+emo_and_au-gaze-hp(video1-25)_ver2.csv
+    img_path:face alignment済み画像ファイルのパス
+    emotion:0=others, 1=comfort, 2=discomfort．AU_sign,Gaze_sign,HP_signのor条件で決定
+    AU_sign：0=not appear, <0=appear．AU（顔面筋）のサインが出ているか
+    Gaze_sign：同上
+    HP_sign：同上
+    AU01~AU24：各画像をJAA-Netに入力したときのAU事後確率
+    gaze_pitch,yaw：各画像をL2CSNetに入力したときの視線検出結果[degree]
+    hp_pitch,roll,yaw：各画像を6DRepNetに入力したときの頭部ポーズ検出結果[degree]
+    video_name：videoの名前
+    frame_id：frameのindex
