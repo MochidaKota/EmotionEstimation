@@ -2,219 +2,6 @@ import torch
 import torch.nn as nn
 import math
 
-class EmoNet_1feature(nn.Module):
-    def __init__(self, input_dim, output_dim, num_layers, hidden_dims, dropout=None, batchnorm=False):
-        super(EmoNet_1feature, self).__init__()
-        
-        layers = []
-        
-        if num_layers == 0:
-            layers.append(nn.Linear(input_dim, output_dim))
-        else:
-            # define input layer
-            layers.append(nn.Linear(input_dim, hidden_dims[0]))
-            if batchnorm == True:
-                layers.append(nn.BatchNorm1d(hidden_dims[0]))
-            layers.append(nn.ReLU(inplace=True))
-            if dropout is not None:
-                layers.append(nn.Dropout(dropout))
-            
-            # define hidden layers  
-            for i in range(1, num_layers):
-                layers.append(nn.Linear(hidden_dims[i-1], hidden_dims[i]))
-                if batchnorm == True:
-                    layers.append(nn.BatchNorm1d(hidden_dims[i]))
-                layers.append(nn.ReLU(inplace=True))
-                if dropout is not None:
-                    layers.append(nn.Dropout(dropout))
-            
-            # define output layer       
-            layers.append(nn.Linear(hidden_dims[-1], output_dim))
-
-        self.emotion_output = nn.Sequential(*layers)
-    
-    def forward(self, x):
-        emotion_output = self.emotion_output(x)
-        return emotion_output
-
-class EmoNet_2feature(nn.Module):
-    def __init__(self, input_dims, output_dim, num_layers, hidden_dims, each_feat_dim=512, dropout=None, batchnorm=False, weighted=False, same_dim=False, summation=False):
-        super(EmoNet_2feature, self).__init__()
-        
-        self.weighted = weighted
-        self.same_dim = same_dim
-        self.summation = summation
-        self.each_feat_dim = each_feat_dim
-        self.concat_dim = input_dims[0] + input_dims[1]
-        layers = []
-        
-        if self.same_dim == True:
-            self.embed_1st_feat = nn.Linear(input_dims[0], self.each_feat_dim)
-            self.embed_2nd_feat = nn.Linear(input_dims[1], self.each_feat_dim)
-            
-        if self.weighted == True:
-            if self.same_dim == True:
-                self.weighted_layer = Weighted_Layer(self.each_feat_dim * 2, 2)
-            else:
-                self.weighted_layer = Weighted_Layer(self.concat_dim, 2)
-        
-        if num_layers == 0:
-            if self.same_dim == True:
-                if self.summation == True:
-                    layers.append(nn.Linear(self.each_feat_dim, output_dim))
-                else:
-                    layers.append(nn.Linear(self.each_feat_dim * 2, output_dim))
-            else:
-                layers.append(nn.Linear(self.concat_dim, output_dim))
-                
-        else:
-            # define input layer
-            if self.same_dim == True:
-                if self.summation == True:
-                    layers.append(nn.Linear(self.each_feat_dim, hidden_dims[0]))
-                else:
-                    layers.append(nn.Linear(self.each_feat_dim * 2, hidden_dims[0]))
-            else:
-                layers.append(nn.Linear(self.concat_dim, hidden_dims[0]))
-            if batchnorm == True:
-                layers.append(nn.BatchNorm1d(hidden_dims[0]))
-            layers.append(nn.ReLU(inplace=True))
-            if dropout is not None:
-                layers.append(nn.Dropout(dropout))
-        
-            # define hidden layers      
-            for i in range(1, num_layers):
-                    layers.append(nn.Linear(hidden_dims[i-1], hidden_dims[i]))
-                    if batchnorm == True:
-                        layers.append(nn.BatchNorm1d(hidden_dims[i]))
-                    layers.append(nn.ReLU(inplace=True))
-                    if dropout is not None:
-                        layers.append(nn.Dropout(dropout))
-            
-            # define output layer           
-            layers.append(nn.Linear(hidden_dims[-1], output_dim))
-        
-        self.emotion_output = nn.Sequential(*layers)
-        
-    def forward(self, x_1st, x_2nd):
-        if self.same_dim == True:
-            x_1st = self.embed_1st_feat(x_1st)
-            x_2nd = self.embed_2nd_feat(x_2nd)
-        
-        if self.weighted == True:
-            weight = self.weighted_layer((x_1st, x_2nd))
-            x_1st = x_1st * weight[:, 0].unsqueeze(1)
-            x_2nd = x_2nd * weight[:, 1].unsqueeze(1)
-            
-        if self.summation == True:
-            x = x_1st + x_2nd
-        else:
-            x = torch.cat((x_1st, x_2nd), dim=1)
-        
-        emotion_output = self.emotion_output(x)
-        
-        return emotion_output
-    
-class EmoNet_3feature(nn.Module):
-    def __init__(self, input_dims, output_dim, num_layers, hidden_dims, each_feat_dim=512, dropout=None, batchnorm=False, weighted=False, same_dim=False, summation=False):
-        super(EmoNet_3feature, self).__init__()
-        
-        self.weighted = weighted
-        self.same_dim = same_dim
-        self.summation = summation
-        self.each_feat_dim = each_feat_dim
-        self.concat_dim = input_dims[0] + input_dims[1] + input_dims[2]
-        layers = []
-        
-        if self.same_dim == True:
-            self.embed_1st_feat = nn.Linear(input_dims[0], self.each_feat_dim)
-            self.embed_2nd_feat = nn.Linear(input_dims[1], self.each_feat_dim)
-            self.embed_3rd_feat = nn.Linear(input_dims[2], self.each_feat_dim)
-            
-        if self.weighted == True:
-            if self.same_dim == True:
-                self.weighted_layer = Weighted_Layer(self.each_feat_dim * 3, 3)
-            else:
-                self.weighted_layer = Weighted_Layer(self.concat_dim, 3)
-        
-        if num_layers == 0:
-            if self.same_dim == True:
-                if self.summation == True:
-                    layers.append(nn.Linear(self.each_feat_dim, output_dim))
-                else:
-                    layers.append(nn.Linear(self.each_feat_dim * 3, output_dim))
-            else:
-                layers.append(nn.Linear(self.concat_dim, output_dim))
-                
-        else:
-            # define input layer
-            if self.same_dim == True:
-                if self.summation == True:
-                    layers.append(nn.Linear(self.each_feat_dim, hidden_dims[0]))
-                else:
-                    layers.append(nn.Linear(self.each_feat_dim * 3, hidden_dims[0]))
-            else:
-                layers.append(nn.Linear(self.concat_dim, hidden_dims[0]))
-            if batchnorm == True:
-                layers.append(nn.BatchNorm1d(hidden_dims[0]))
-            layers.append(nn.ReLU(inplace=True))
-            if dropout is not None:
-                layers.append(nn.Dropout(dropout))
-        
-            # define hidden layers      
-            for i in range(1, num_layers):
-                    layers.append(nn.Linear(hidden_dims[i-1], hidden_dims[i]))
-                    if batchnorm == True:
-                        layers.append(nn.BatchNorm1d(hidden_dims[i]))
-                    layers.append(nn.ReLU(inplace=True))
-                    if dropout is not None:
-                        layers.append(nn.Dropout(dropout))
-            
-            # define output layer           
-            layers.append(nn.Linear(hidden_dims[-1], output_dim))
-        
-        self.emotion_output = nn.Sequential(*layers)
-        
-    def forward(self, x_1st, x_2nd, x_3rd):
-        if self.same_dim == True:
-            x_1st = self.embed_1st_feat(x_1st)
-            x_2nd = self.embed_2nd_feat(x_2nd)
-            x_3rd = self.embed_3rd_feat(x_3rd)
-        
-        if self.weighted == True:
-            weight = self.weighted_layer((x_1st, x_2nd, x_3rd))
-            x_1st = x_1st * weight[:, 0].unsqueeze(1)
-            x_2nd = x_2nd * weight[:, 1].unsqueeze(1)
-            x_3rd = x_3rd * weight[:, 2].unsqueeze(1)
-            
-        if self.summation == True:
-            x = x_1st + x_2nd + x_3rd
-        else:
-            x = torch.cat((x_1st, x_2nd, x_3rd), dim=1)
-        
-        emotion_output = self.emotion_output(x)
-        
-        return emotion_output
-        
-class Weighted_Layer(nn.Module):
-    def __init__(self, feat_dim, feat_num):
-        super(Weighted_Layer, self).__init__()
-        
-        layer = []
-        layer.append(nn.Linear(feat_dim, feat_dim // 2))
-        layer.append(nn.ReLU(inplace=True))
-        layer.append(nn.Linear(feat_dim // 2, feat_num))
-        layer.append(nn.Softmax(dim=1))
-        
-        self.weighted_layer = nn.Sequential(*layer)    
-
-    def forward(self, feat_list:tuple):
-        x = torch.cat(feat_list, dim=1)
-        
-        weights = self.weighted_layer(x)
-        
-        return weights
-   
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model, max_seq_len):
         super(PositionalEncoding, self).__init__()
@@ -303,13 +90,10 @@ class TransformerClassifier(nn.Module):
         return x, mid_feat
     
 class MLPClassifier(nn.Module):
-    def __init__(self, num_classes, input_dim, hidden_dims, activation='ReLU', dropout=0.1, batchnorm=True, summation=False, ew_product=False, arith_mean=False):
+    def __init__(self, num_classes, input_dim, hidden_dims, activation='ReLU', dropout=0.1, batchnorm=True):
         super(MLPClassifier, self).__init__()
         
         layers = []
-        self.summation = summation
-        self.ew_product = ew_product
-        self.arith_mean = arith_mean
         
         if activation == 'ReLU':
             self.activation = nn.ReLU(inplace=True)
@@ -343,26 +127,7 @@ class MLPClassifier(nn.Module):
         
         self.classifier = nn.Sequential(*layers)
         
-    def forward(self, x:list):
-        if type(x) != list:
-            raise ValueError('x must be list.')
-
-        feat_num = len(x)
-        
-        if feat_num == 1:
-            x = x[0]
-        else:
-            if self.summation == True:
-                x = torch.sum(torch.stack(x), dim=0)
-                
-                if self.arith_mean == True:
-                    x = x / feat_num
-                    
-            elif self.ew_product == True:
-                x = torch.prod(torch.stack(x), dim=0)
-                
-            else:
-                x = torch.cat(x, dim=-1)
+    def forward(self, x):
         
         mid_feat = None
         for i, layer in enumerate(self.classifier):
@@ -373,13 +138,17 @@ class MLPClassifier(nn.Module):
         return x, mid_feat
             
 class AttentivePooling(nn.Module):
-    def __init__(self, input_dim, hidden_dim, activation='relu'):
+    def __init__(self, input_dim, hidden_dim, activation='relu', is_linear=False):
         super(AttentivePooling, self).__init__()
         
-        self.linear = nn.Linear(input_dim, hidden_dim, bias=False)
-        
-        self.attention_vector = nn.Parameter(torch.empty(hidden_dim, dtype=torch.float32))
+        self.is_linear = is_linear
+        if self.is_linear == True:
+            self.attention_vector = nn.Parameter(torch.empty(hidden_dim, dtype=torch.float32))
+        else:
+            self.attention_vector = nn.Parameter(torch.empty(input_dim, dtype=torch.float32))
         nn.init.normal_(self.attention_vector, mean=0.0, std=0.05)
+        
+        self.linear = nn.Linear(input_dim, hidden_dim, bias=False)
         
         self.activation = None
         if activation == 'tanh':
@@ -393,63 +162,122 @@ class AttentivePooling(nn.Module):
 
     def forward(self, inputs):
         
-        # linear transformation
-        transformed_inputs = self.linear(inputs)
-        
-        # activation
-        transformed_inputs = self.activation(transformed_inputs)
+        if self.is_linear == True:
+            # linear transformation
+            inputs = self.linear(inputs)    
+            # activation
+            inputs = self.activation(inputs)
         
         # attention weights
-        attention_scores = torch.matmul(transformed_inputs, self.attention_vector)
+        attention_scores = torch.matmul(inputs, self.attention_vector.unsqueeze(-1)).squeeze(-1)
         attention_weights = torch.softmax(attention_scores, dim=1)
-        attention_weights = attention_weights.unsqueeze(-1)
         
         # weighted sum
-        weighted_sum = torch.sum(inputs * attention_weights, dim=1)
+        weighted_sum = torch.sum(inputs * attention_weights.unsqueeze(-1), dim=1)
         
         return weighted_sum, attention_weights
 
-class OneDCNNClassifier(nn.Module):
-    def __init__(self, num_classes, in_channel, hid_channels, batchnorm=True, maxpool=True, kernel_size=3, stride=1, padding=1):
-        super(OneDCNNClassifier, self).__init__()
+class Conv1DClassifier(nn.Module):
+    def __init__(self, num_classes, in_channel, hid_channels, batchnorm=True, maxpool=False, kernel_size=[3, 3], stride=[1, 1], padding=[1, 1], gpool_type='avg'):
+        super(Conv1DClassifier, self).__init__()
         
         conv_layers = []
         
         # define input layer
-        conv_layers.append(nn.Conv1d(in_channel, hid_channels[0], kernel_size=kernel_size, stride=stride, padding=padding))
+        conv_layers.append(nn.Conv1d(in_channel, hid_channels[0], kernel_size=kernel_size[0], stride=stride[0], padding=padding[0]))
         if batchnorm == True:
             conv_layers.append(nn.BatchNorm1d(hid_channels[0]))
         conv_layers.append(nn.ReLU(inplace=True))
-        if maxpool == True:
+        if maxpool == True and len(hid_channels) > 1:
             conv_layers.append(nn.MaxPool1d(kernel_size=2))
             
         # define hidden layers
         for i in range(1, len(hid_channels)):
-            conv_layers.append(nn.Conv1d(hid_channels[i-1], hid_channels[i], kernel_size=kernel_size, stride=stride, padding=padding))
+            conv_layers.append(nn.Conv1d(hid_channels[i-1], hid_channels[i], kernel_size=kernel_size[i], stride=stride[i], padding=padding[i]))
             if batchnorm == True:
                 conv_layers.append(nn.BatchNorm1d(hid_channels[i]))
             conv_layers.append(nn.ReLU(inplace=True))
-            if maxpool == True:
+            if maxpool == True and i != len(hid_channels) - 1:
                 conv_layers.append(nn.MaxPool1d(kernel_size=2))
                 
         self.conv_layers = nn.Sequential(*conv_layers)
         
-        self.gap = nn.AdaptiveAvgPool1d(1)
+        self.global_pooling = None
+        self.gpool_type = gpool_type
+        if gpool_type == 'avg':
+            self.global_pooling = nn.AdaptiveAvgPool1d(1)
+        elif gpool_type == 'max':   
+            self.global_pooling = nn.AdaptiveMaxPool1d(1)
+        elif gpool_type == 'att':
+            self.global_pooling = AttentivePooling(input_dim=hid_channels[-1], hidden_dim=hid_channels[-1] // 2, is_linear=True)
         
         self.fc = nn.Linear(hid_channels[-1], num_classes)
         
-    def forward(self, x:list):
-        if type(x) != list:
-            raise ValueError('x must be list.')
-        if len(x) == 1:
-            x = x[0]
-        else:
-            x = torch.cat(x, dim=-1)
+    def forward(self, x):
+        # x: (batch_size, seq_len, in_channel)
              
+        x = x.transpose(1, 2)
         x = self.conv_layers(x)
-        x = self.gap(x)
+        
+        if self.gpool_type == 'att':
+            x = x.transpose(1, 2)
+            x, _ = self.global_pooling(x)
+        else:
+            x = self.global_pooling(x)
+            
         x = x.view(x.size(0), -1)
         mid_feat = x
+        
+        x = self.fc(x)
+        
+        return x, mid_feat
+    
+class Conv2DClassifier(nn.Module):
+    def __init__(self, num_classes, hid_channels, in_channel=1, batchnorm=True, maxpool=True, kernel_size=[3, 3], stride=[1, 1], padding=[1, 1], gpool_type='avg'):
+        super(Conv2DClassifier, self).__init__()
+        
+        conv_layers = []
+        
+        # define input layer
+        conv_layers.append(nn.Conv2d(in_channel, hid_channels[0], kernel_size=kernel_size[0], stride=stride[0], padding=padding[0]))
+        if batchnorm == True:
+            conv_layers.append(nn.BatchNorm2d(hid_channels[0]))
+        conv_layers.append(nn.ReLU(inplace=True))
+        if maxpool == True and len(hid_channels) > 1:
+            conv_layers.append(nn.MaxPool2d(kernel_size=2))
+            
+        # define hidden layers
+        for i in range(1, len(hid_channels)):
+            conv_layers.append(nn.Conv2d(hid_channels[i-1], hid_channels[i], kernel_size=kernel_size[i], stride=stride[i], padding=padding[i]))
+            if batchnorm == True:
+                conv_layers.append(nn.BatchNorm2d(hid_channels[i]))
+            conv_layers.append(nn.ReLU(inplace=True))
+            if maxpool == True and i != len(hid_channels) - 1:
+                conv_layers.append(nn.MaxPool2d(kernel_size=2))
+                
+        self.conv_layers = nn.Sequential(*conv_layers)
+        
+        self.global_pooling = None
+        self.gpool_type = gpool_type
+        if gpool_type == 'avg':
+            self.global_pooling = nn.AdaptiveAvgPool2d(1)
+        elif gpool_type == 'max':   
+            self.global_pooling = nn.AdaptiveMaxPool2d(1)
+        
+        self.fc = nn.Linear(hid_channels[-1], num_classes)
+        
+    def forward(self, x):
+        # x: (batch_size, seq_len, feature_dim)
+        
+        x = x.unsqueeze(1)
+        
+        x = self.conv_layers(x)
+        
+        x = self.global_pooling(x)
+        
+        x = x.view(x.size(0), -1)
+        mid_feat = x
+        
         x = self.fc(x)
         
         return x, mid_feat
@@ -472,19 +300,16 @@ class LSTMClassifier(nn.Module):
             elif 'weight' in name:
                 nn.init.xavier_uniform_(param)
         
-    def forward(self, x:list):
-        if type(x) != list:
-            raise ValueError('x must be list.')
-        if len(x) == 1:
-            x = x[0]
-        else:
-            x = torch.cat(x, dim=-1)
+    def forward(self, x):
+        # x: (batch_size, seq_len, input_dim)
             
         x, _ = self.lstm(x)
         x = x[:, -1, :]
+        mid_feat = x
+        
         x = self.fc(x)
         
-        return x 
+        return x , mid_feat
     
 class StreamMixer(nn.Module):
     def __init__(self, feats_dim, num_feats, hidden_dims, dropout=0.1, activation='relu', batchnorm=True, is_binary=False):
@@ -551,29 +376,6 @@ class StreamMixer(nn.Module):
             
         return x
     
-class BottleNeckLayer(nn.Module):
-    def __init__(self, input_dim, ratio=4, dropout=0.1, batchnorm=True):
-        super(BottleNeckLayer, self).__init__()
-        
-        layers = []
-        
-        layers.append(nn.Linear(input_dim, input_dim // ratio))
-        if batchnorm:
-            layers.append(nn.BatchNorm1d(input_dim // ratio))
-        layers.append(nn.ReLU(inplace=True))
-        if dropout is not None:
-            layers.append(nn.Dropout(dropout))
-        
-        layers.append(nn.Linear(input_dim // ratio, input_dim))
-        
-        self.bottleneck_layer = nn.Sequential(*layers)
-        
-    def forward(self, x):
-        for i, layer in enumerate(self.bottleneck_layer):
-            x = layer(x)
-        
-        return x
-    
 class AUStream(nn.Module):
     def __init__(self, num_classes=2, input_dim=12000, hidden_dim=128, hid_channels=[256, 512], dropout=0.1, kernel_size=5, is_maxpool=True):
         super(AUStream, self).__init__()
@@ -630,7 +432,7 @@ class AUStream2(nn.Module):
         
         self.t_conv1 = nn.Conv1d(120, 256, kernel_size=3, stride=1, padding=1)
         self.t_bn1 = nn.BatchNorm1d(256)
-        self.t_conv2 = nn.Conv1d(256, 512, kernel_size=5, stride=1, padding=2)
+        self.t_conv2 = nn.Conv1d(256, 512, kernel_size=3, stride=1, padding=1)
         self.t_bn2 = nn.BatchNorm1d(512)
         
         self.relu = nn.ReLU(inplace=True)
@@ -666,6 +468,151 @@ class AUStream2(nn.Module):
         
         x = self.t_conv2(x)
         x = self.t_bn2(x)
+        x = self.relu(x)
+        
+        if self.gpool_type == 'att':
+            x = x.transpose(1, 2)
+        
+        x = self.global_pooling(x)
+        
+        if self.gpool_type == 'att':
+            x, _ = x
+        
+        x = x.view(x.size(0), -1)
+        mid_feat = x
+        
+        x = self.fc(x)
+        
+        return x, mid_feat
+    
+class AUStreamTemp(nn.Module):
+    def __init__(self, num_classes=2, input_dim=12000, hid_channels=[256, 512], global_pooling='ave'):
+        super(AUStreamTemp, self).__init__()
+        
+        self.conv1 = nn.Conv1d(input_dim, hid_channels[0], kernel_size=3, stride=1, padding=1)
+        self.bn1 = nn.BatchNorm1d(hid_channels[0])
+        self.conv2 = nn.Conv1d(hid_channels[0], hid_channels[1], kernel_size=3, stride=1, padding=1)
+        self.bn2 = nn.BatchNorm1d(hid_channels[1])
+        
+        self.relu = nn.ReLU(inplace=True)
+        
+        self.global_pooling = None
+        self.gpool_type = global_pooling
+        if global_pooling == 'ave':
+            self.global_pooling = nn.AdaptiveAvgPool1d(1)
+        elif global_pooling == 'max':
+            self.global_pooling = nn.AdaptiveMaxPool1d(1)
+        elif global_pooling == 'att':
+            self.global_pooling = AttentivePooling(input_dim=512, hidden_dim=128)
+            
+        self.fc = nn.Linear(hid_channels[1], num_classes)
+        
+    def forward(self, x):
+        x = x.transpose(1, 2)
+        
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        
+        x = self.conv2(x)
+        x = self.bn2(x)
+        x = self.relu(x)
+        
+        if self.gpool_type == 'att':
+            x = x.transpose(1, 2)
+        
+        x = self.global_pooling(x)
+        
+        if self.gpool_type == 'att':
+            x, _ = x
+        
+        x = x.view(x.size(0), -1)
+        mid_feat = x
+        
+        x = self.fc(x)
+        
+        return x, mid_feat
+    
+class GazeStream(nn.Module):
+    def __init__(self, num_classes=2, input_dim=180, hid_channels=[256, 512], global_pooling='ave'):
+        super(GazeStream, self).__init__()
+        
+        self.conv1 = nn.Conv1d(input_dim, hid_channels[0], kernel_size=3, stride=1, padding=1)
+        self.bn1 = nn.BatchNorm1d(hid_channels[0])
+        self.conv2 = nn.Conv1d(hid_channels[0], hid_channels[1], kernel_size=3, stride=1, padding=1)
+        self.bn2 = nn.BatchNorm1d(hid_channels[1])
+        
+        self.relu = nn.ReLU(inplace=True)
+        
+        self.global_pooling = None
+        self.gpool_type = global_pooling
+        if global_pooling == 'ave':
+            self.global_pooling = nn.AdaptiveAvgPool1d(1)
+        elif global_pooling == 'max':
+            self.global_pooling = nn.AdaptiveMaxPool1d(1)
+        elif global_pooling == 'att':
+            self.global_pooling = AttentivePooling(input_dim=512, hidden_dim=128)
+            
+        self.fc = nn.Linear(hid_channels[1], num_classes)
+        
+    def forward(self, x):
+        x = x.transpose(1, 2)
+        
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        
+        x = self.conv2(x)
+        x = self.bn2(x)
+        x = self.relu(x)
+        
+        if self.gpool_type == 'att':
+            x = x.transpose(1, 2)
+        
+        x = self.global_pooling(x)
+        
+        if self.gpool_type == 'att':
+            x, _ = x
+        
+        x = x.view(x.size(0), -1)
+        mid_feat = x
+        
+        x = self.fc(x)
+        
+        return x, mid_feat
+    
+    
+class HPStream(nn.Module):
+    def __init__(self, num_classes=2, input_dim=6, hid_channels=[8, 512], global_pooling='avg'):
+        super(HPStream, self).__init__()
+        
+        self.conv1 = nn.Conv1d(input_dim, hid_channels[0], kernel_size=3, stride=1, padding=1)
+        self.bn1 = nn.BatchNorm1d(hid_channels[0])
+        self.conv2 = nn.Conv1d(hid_channels[0], hid_channels[1], kernel_size=3, stride=1, padding=1)
+        self.bn2 = nn.BatchNorm1d(hid_channels[1])
+        
+        self.relu = nn.ReLU(inplace=True)
+        
+        self.global_pooling = None
+        self.gpool_type = global_pooling
+        if global_pooling == 'avg':
+            self.global_pooling = nn.AdaptiveAvgPool1d(1)
+        elif global_pooling == 'max':
+            self.global_pooling = nn.AdaptiveMaxPool1d(1)
+        elif global_pooling == 'att':
+            self.global_pooling = AttentivePooling(input_dim=512, hidden_dim=128)
+            
+        self.fc = nn.Linear(hid_channels[1], num_classes)
+        
+    def forward(self, x):
+        x = x.transpose(1, 2)
+        
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        
+        x = self.conv2(x)
+        x = self.bn2(x)
         x = self.relu(x)
         
         if self.gpool_type == 'att':

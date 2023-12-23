@@ -93,3 +93,15 @@ reports/
 
 # temp
 temp/
+
+# old
+old/
+
+# runs
+runs/
+
+# slack
+notify-slack.py
+
+# jupyter notebook
+work.ipynb

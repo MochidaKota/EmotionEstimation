@@ -2,36 +2,23 @@ import glob
 import os
 import pandas as pd
 import argparse
-from util import str2bool
-from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score, roc_auc_score, precision_recall_curve, auc, confusion_matrix
+from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score, roc_curve, precision_recall_curve, auc, confusion_matrix
 from matplotlib import pyplot as plt
 import seaborn as sns
+import numpy as np
 
 def main(config):
-    save_res_dir = config.write_res_prefix + config.run_name + '/' + f'epoch{config.target_epoch}'
-    if os.path.exists(save_res_dir) == False:
-        save_res_dir = config.write_res_prefix + config.run_name
+    res_path_dir = config.res_path_prefix + config.run_name + '/' + f'epoch{config.target_epoch}'
+    os.makedirs(res_path_dir, exist_ok=True)
     report = pd.DataFrame()
     pred = pd.DataFrame()
     
-    for i in range(len(glob.glob(save_res_dir + "/fold*"))):
-        fold_dir = save_res_dir + "/fold{}".format(i + 1)
-        if config.only == True:
-            print(f"fold{i + 1} only_{config.target_emo}_video")
-            fold_report = pd.read_csv(fold_dir + f"/only_{config.target_emo}_video/{config.target_emo}_report.csv")
-            fold_pred = pd.read_csv(fold_dir + f"/only_{config.target_emo}_video/{config.target_emo}_pred.csv")
-        else:
-            fold_report = pd.read_csv(fold_dir + f"/{config.target_emo}_report.csv")
-            fold_pred = pd.read_csv(fold_dir + f"/{config.target_emo}_pred.csv")
+    for i in range(len(glob.glob(res_path_dir + "/fold*"))):
+        fold_dir = res_path_dir + "/fold{}".format(i + 1)
+        fold_report = pd.read_csv(fold_dir + f"/{config.target_emo}_report.csv")
+        fold_pred = pd.read_csv(fold_dir + f"/{config.target_emo}_pred.csv")
         report = pd.concat([report, fold_report], axis=0)
         pred = pd.concat([pred, fold_pred], axis=0)
-    
-    report.index = ["fold{}".format(i + 1) for i in range(report.shape[0])]
-    
-    report_mean = pd.DataFrame(report.mean()).T
-    report_mean.index = ["mean"]
-    report = pd.concat([report, report_mean], axis=0)
-    report.columns = ["precision", "recall", "f1", "accuracy", "roc_auc", "pr_auc"]
     
     pred = pred.sort_values('img_path')
     pred = pred.reset_index(drop=True)
@@ -55,7 +42,8 @@ def main(config):
     precision = precision_score(gt_list, pred["emo_pred"])
     recall = recall_score(gt_list, pred["emo_pred"])
     f1 = f1_score(gt_list, pred["emo_pred"])
-    roc_auc = roc_auc_score(gt_list, pred["emo_pos"])
+    fpr, tpr, _ = roc_curve(gt_list, pred["emo_pos"])
+    roc_auc = auc(fpr, tpr)
     pre, rec, _ = precision_recall_curve(gt_list, pred["emo_pos"])
     pr_auc = auc(rec, pre)
     
@@ -70,41 +58,59 @@ def main(config):
     plt.xlabel('Pred')
     plt.ylabel('GT')
     plt.tight_layout()
-    plt.savefig(save_res_dir + "/" + f"{config.target_emo}_cm.png")
+    plt.savefig(res_path_dir + "/" + f"confusion_matrix.png")
+    plt.close()
+    
+    # save roc curve
+    plt.plot(fpr, tpr, label='ROC curve (area = %.2f)'%roc_auc)
+    plt.plot(np.linspace(1, 0, len(fpr)), np.linspace(1, 0, len(fpr)), label='Random ROC curve (area = %.2f)'%0.5, linestyle = '--', color = 'gray')
+    plt.legend()
+    plt.title('ROC curve')
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.grid()
+    plt.tight_layout()
+    plt.savefig(res_path_dir + "/" + f"roc_curve.png")
+    plt.close()
+    
+    # save pr curve
+    plt.plot(rec, pre, label='PR curve (area = %.2f)'%pr_auc)
+    plt.legend()
+    plt.title('PR curve')
+    plt.xlabel('Recall')
+    plt.ylabel('Precision')
+    plt.grid()
+    plt.tight_layout()
+    plt.savefig(res_path_dir + "/" + f"pr_curve.png")
     plt.close()
     
     # save pred
-    if config.only == True:
-        pred.to_csv(save_res_dir + f"/only_{config.target_emo}_video_pred.csv", index=False)
-    else:
-        pred.to_csv(save_res_dir + f"/{config.target_emo}_pred_all.csv", index=False)
+    pred.to_csv(res_path_dir + f"/pred_all.csv", index=False)
         
-    # save metrics as a csv file
+    # save metrics
     metrics = pd.DataFrame([precision, recall, f1, acc, roc_auc, pr_auc]).T
     metrics.columns = ["precision", "recall", "f1", "accuracy", "roc_auc", "pr_auc"]
+    metrics.to_csv(res_path_dir + f"/metrics.csv", index=False)
     
-    if config.only == True:
-        metrics.to_csv(save_res_dir + f"/only_{config.target_emo}_video_metrics(micro_ave).csv", index=False)
-    else:
-        metrics.to_csv(save_res_dir + f"/{config.target_emo}_metrics(micro_ave).csv", index=False)
+    # save metrics(macro_avg)
+    report.index = ["fold{}".format(i + 1) for i in range(report.shape[0])]
+    report_mean = pd.DataFrame(report.mean()).T
+    report_mean.index = ["mean"]
+    report = pd.concat([report, report_mean], axis=0)
+    report.columns = ["precision", "recall", "f1", "accuracy", "roc_auc", "pr_auc"]
+    report.to_csv(res_path_dir + f"/metrics(macro_avg).csv")
     
-       
-    # save report
-    if config.only == True:
-        report.to_csv(save_res_dir + f"/only_{config.target_emo}_video_report.csv")
-    else:
-        report.to_csv(save_res_dir + f"/{config.target_emo}_report.csv")
+    print()
+    print(f'-----calcuation result for epoch{config.target_epoch}-----')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--write_res_prefix', type=str, default='/mnt/iot-qnap3/mochida/medical-care/emotionestimation/reports/PIMD_A/', help='write result prefix')
+    
+    parser.add_argument('--res_path_prefix', type=str, default='/mnt/iot-qnap3/mochida/medical-care/emotionestimation/reports/PIMD_A/', help='write result prefix')
     parser.add_argument("--run_name", type=str, default="default_run")
     parser.add_argument("--target_epoch", type=str, default="best")
     parser.add_argument("--target_emo", type=str, default="comfort")
-    parser.add_argument("--only", type=str2bool, default=False)
-    config = parser.parse_args()
     
-    print()
-    print("------calc cv result------")
+    config = parser.parse_args()
     
     main(config)
