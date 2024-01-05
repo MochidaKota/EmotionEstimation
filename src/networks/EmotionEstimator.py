@@ -138,38 +138,49 @@ class MLPClassifier(nn.Module):
         return x, mid_feat
             
 class AttentivePooling(nn.Module):
-    def __init__(self, input_dim, hidden_dim, activation='relu', is_linear=False):
+    def __init__(self, input_dim, pool_type='base'):
         super(AttentivePooling, self).__init__()
         
-        self.is_linear = is_linear
-        if self.is_linear == True:
-            self.attention_vector = nn.Parameter(torch.empty(hidden_dim, dtype=torch.float32))
-        else:
+        self.pool_type = pool_type
+        self.attention_vector = None
+        self.linear = None
+        
+        if self.pool_type == 'base':
             self.attention_vector = nn.Parameter(torch.empty(input_dim, dtype=torch.float32))
-        nn.init.normal_(self.attention_vector, mean=0.0, std=0.05)
-        
-        self.linear = nn.Linear(input_dim, hidden_dim, bias=False)
-        
-        self.activation = None
-        if activation == 'tanh':
-            self.activation = nn.Tanh()
-        elif activation == 'relu':
-            self.activation = nn.ReLU(inplace=True)
-        elif activation == 'sigmoid':
-            self.activation = nn.Sigmoid()
-        else:
-            raise ValueError('activation must be tanh, sigmoid or relu.')
+            nn.init.normal_(self.attention_vector, mean=0.0, std=0.05)
+            
+        elif self.pool_type == 'woLi':
+            self.linear = nn.Sequential(
+                nn.Linear(input_dim, input_dim // 2),
+                nn.ReLU(inplace=True)
+            )
+            self.attention_vector = nn.Parameter(torch.empty(input_dim // 2, dtype=torch.float32))
+            nn.init.normal_(self.attention_vector, mean=0.0, std=0.05)
+            
+        elif self.pool_type == 'Li':
+            self.linear = nn.Linear(input_dim, 1, bias=False)
+            
+        elif self.pool_type == 'MLP':
+            self.linear = nn.Sequential(
+                nn.Linear(input_dim, input_dim // 2),
+                nn.ReLU(inplace=True),
+                nn.Linear(input_dim // 2, 1)
+            )
 
     def forward(self, inputs):
+        # inputs: (batch_size, seq_len, input_dim)
         
-        if self.is_linear == True:
-            # linear transformation
-            inputs = self.linear(inputs)    
-            # activation
-            inputs = self.activation(inputs)
+        # calculate attention scores
+        if self.pool_type == 'base':
+            attention_scores = torch.matmul(inputs, self.attention_vector.unsqueeze(-1)).squeeze(-1)
+            
+        elif self.pool_type == 'woLi':
+            transformed_inputs = self.linear(inputs)
+            attention_scores = torch.matmul(transformed_inputs, self.attention_vector.unsqueeze(-1)).squeeze(-1)
+            
+        elif self.pool_type == 'Li' or self.pool_type == 'MLP':
+            attention_scores = self.linear(inputs).view(inputs.size(0), -1)
         
-        # attention weights
-        attention_scores = torch.matmul(inputs, self.attention_vector.unsqueeze(-1)).squeeze(-1)
         attention_weights = torch.softmax(attention_scores, dim=1)
         
         # weighted sum
@@ -178,7 +189,7 @@ class AttentivePooling(nn.Module):
         return weighted_sum, attention_weights
 
 class Conv1DClassifier(nn.Module):
-    def __init__(self, num_classes, in_channel, hid_channels, batchnorm=True, maxpool=False, kernel_size=[3, 3], stride=[1, 1], padding=[1, 1], gpool_type='avg'):
+    def __init__(self, num_classes, in_channel, hid_channels, batchnorm=True, maxpool=False, kernel_size=[3, 3], stride=[1, 1], padding=[1, 1], gpool_type='avg', att_pool_type='base'):
         super(Conv1DClassifier, self).__init__()
         
         conv_layers = []
@@ -209,7 +220,7 @@ class Conv1DClassifier(nn.Module):
         elif gpool_type == 'max':   
             self.global_pooling = nn.AdaptiveMaxPool1d(1)
         elif gpool_type == 'att':
-            self.global_pooling = AttentivePooling(input_dim=hid_channels[-1], hidden_dim=hid_channels[-1] // 2, is_linear=True)
+            self.global_pooling = AttentivePooling(input_dim=hid_channels[-1], pool_type=att_pool_type)
         
         self.fc = nn.Linear(hid_channels[-1], num_classes)
         
@@ -304,7 +315,9 @@ class LSTMClassifier(nn.Module):
         # x: (batch_size, seq_len, input_dim)
             
         x, _ = self.lstm(x)
-        x = x[:, -1, :]
+        
+        # x = x[:, -1, :]
+        
         mid_feat = x
         
         x = self.fc(x)

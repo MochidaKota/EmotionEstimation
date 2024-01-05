@@ -206,7 +206,7 @@ def main(config):
         
     # save torchsummary
     with open(res_path_rootdir + '/modelsummary.txt', 'w') as f:
-        f.write(summary(training_module['emo_net'], input_size=(config.batch_size, config.window_size, input_dim), verbose=0))
+        f.write(repr(summary(training_module['emo_net'], input_size=(config.batch_size, config.window_size, input_dim), verbose=0)))
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

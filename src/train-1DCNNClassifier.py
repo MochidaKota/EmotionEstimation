@@ -55,7 +55,6 @@ def main(config):
     )
     
     if config.check_test_loss == True:
-        
         datasets['test'] = SeqFeatList(
             labels_path=config.labels_path,
             video_name_list=get_video_name_list(config.video_name_list_path, config.fold, phase='test'),
@@ -65,7 +64,7 @@ def main(config):
         
         dataloaders['test'] = DataLoader(
             datasets['test'],
-            batch_size=1,
+            batch_size=config.batch_size,
             shuffle=False,
             num_workers=2
         )
@@ -94,7 +93,8 @@ def main(config):
         kernel_size=config.kernel_size,
         stride=config.stride,
         padding=config.padding,
-        gpool_type=config.pool_type
+        gpool_type=config.pool_type,
+        att_pool_type=config.att_pool_type
     )
         
     training_module['emo_net'] = emo_net
@@ -156,8 +156,8 @@ def main(config):
                 
                 feats = feats.to(device)    
                     
-                emotions = emotions.to(device)
                 emotions = convert_label_to_binary(emotions, config.target_emo)
+                emotions = emotions.to(device)
                     
                 optimizer.zero_grad()
                     
@@ -219,7 +219,7 @@ def main(config):
         
     # save torchsummary
     with open(res_path_rootdir + '/modelsummary.txt', 'w') as f:
-        f.write(summary(training_module['emo_net'], input_size=(config.batch_size, config.window_size, input_dim), verbose=0))
+        f.write(repr(summary(training_module['emo_net'], input_size=(config.batch_size, config.window_size, input_dim), verbose=0)))
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -237,13 +237,14 @@ if __name__ == '__main__':
     parser.add_argument('--stride', nargs='*', type=int, default=None, help='stride')
     parser.add_argument('--padding', nargs='*', type=int, default=None, help='padding')
     parser.add_argument('--pool_type', type=str, default='avg', choices=['max', 'avg', 'att'], help='pooling type')
+    parser.add_argument('--att_pool_type', type=str, default='base', choices=['base', 'woLi', 'Li', 'MLP'], help='attention pooling type')
     
     # training configuration
     parser.add_argument('--fold', type=int, default=0, help='fold number')
     parser.add_argument('--gpu_id', type=str, default='0', help='gpu id')
     parser.add_argument('--batch_size', type=int, default=8, help='batch size')
     parser.add_argument('--optimizer', type=str, default='AdamW', choices=['Adam', 'AdamW'], help='optimizer')
-    parser.add_argument('--lr', type=float, default=0.001)
+    parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--n_epochs', type=int, default=10, help='number of epochs')
     parser.add_argument('--check_test_loss', type=str2bool, default=True, help='check test loss or not')
     

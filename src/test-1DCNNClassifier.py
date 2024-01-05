@@ -70,7 +70,8 @@ def main(config):
         kernel_size=config.kernel_size,
         stride=config.stride,
         padding=config.padding,
-        gpool_type=config.pool_type
+        gpool_type=config.pool_type,
+        att_pool_type=config.att_pool_type
     )
     
     model_path_dir = config.model_path_prefix + config.run_name + f'/epoch{config.target_epoch}' + f'/fold{config.fold}'   
@@ -203,6 +204,7 @@ if __name__ == '__main__':
     parser.add_argument('--stride', nargs='*', type=int, default=None, help='stride')
     parser.add_argument('--padding', nargs='*', type=int, default=None, help='padding')
     parser.add_argument('--pool_type', type=str, default='avg', choices=['max', 'avg', 'att'], help='pooling type')
+    parser.add_argument('--att_pool_type', type=str, default='base', choices=['base', 'woLi', 'Li', 'MLP'], help='attention pooling type')
     
     # test configration
     parser.add_argument('--fold', type=int, default=0, help='fold number')

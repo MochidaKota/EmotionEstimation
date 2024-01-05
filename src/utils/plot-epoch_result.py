@@ -3,9 +3,9 @@ import matplotlib.pyplot as plt
 import glob
 import argparse
 
-def plot_metircs(config):
+def plot_metrics(config):
     metrics_list = pd.DataFrame()
-    for i, metric_path in enumerate(glob.glob(config.res_path_prefix + config.run_name + '/**/' + '*_metrics.csv', recursive=True)):
+    for i, metric_path in enumerate(glob.glob(config.res_path_prefix + config.run_name + '/**/' + 'metrics.csv', recursive=True)):
         _metrics = pd.read_csv(metric_path)
         _metrics['epoch'] = i + 1
         metrics_list = pd.concat([metrics_list, _metrics], axis=0)
@@ -54,7 +54,7 @@ def plot_history(config):
     plt.legend()
 
     plt.tight_layout()
-    plt.savefig(config.res_path_prefix + config.run_name + 'history/history.png')
+    plt.savefig(config.res_path_prefix + config.run_name + '/history.png')
     
     print()
     print(f'-----plot history-----')
@@ -66,6 +66,6 @@ if __name__ == "__main__":
     parser.add_argument('--res_path_prefix', type=str, default='/mnt/iot-qnap3/mochida/medical-care/emotionestimation/reports/PIMD_A/', help='write result prefix')
     config = parser.parse_args()
     
-    plot_metircs(config)
+    plot_metrics(config)
     
     plot_history(config)

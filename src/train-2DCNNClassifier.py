@@ -23,7 +23,7 @@ def main(config):
     torch_fix_seed()
     
     # define device
-    device = torch.device("cuda:" + config.gpu_id if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda:" + config.gpu_id if torch.cuda.is_available() else "cpu")
     
     # define use_feat_list
     use_feat_list = {'AU':config.use_feat_list[0], 'Gaze':config.use_feat_list[1], 'HP':config.use_feat_list[2]}
@@ -65,7 +65,7 @@ def main(config):
         
         dataloaders['test'] = DataLoader(
             datasets['test'],
-            batch_size=1,
+            batch_size=config.batch_size,
             shuffle=False,
             num_workers=2
         )
@@ -95,11 +95,12 @@ def main(config):
         padding=config.padding,
         gpool_type=config.pool_type
     )
+    emo_net = torch.nn.DataParallel(emo_net)
         
     training_module['emo_net'] = emo_net
         
     for module in training_module.values():
-        module.to(device)
+        module.to('cuda')
     
     # define optimizer
     optimizer = None
@@ -153,10 +154,10 @@ def main(config):
                 # get batch data
                 feats, _, emotions = batch
                 
-                feats = feats.to(device)    
-                    
-                emotions = emotions.to(device)
-                emotions = convert_label_to_binary(emotions, config.target_emo)
+                feats = feats.to('cuda')    
+                
+                emotions = convert_label_to_binary(emotions, config.target_emo) 
+                emotions = emotions.to('cuda')
                     
                 optimizer.zero_grad()
                     
@@ -198,7 +199,8 @@ def main(config):
                 
             # save parameters
             if phase == 'train':
-                torch.save(training_module['emo_net'].state_dict(), model_path_dir + '/' + config.target_emo + '_' + f'emo_net.pth')
+                state_dict = {k.partition('module.')[2]: v for k, v in training_module['emo_net'].state_dict().items()}
+                torch.save(state_dict, model_path_dir + '/' + config.target_emo + '_' + f'emo_net.pth')
     
     print()
     print(f"----- Finish training... (fold{config.fold}) -----")
@@ -218,7 +220,7 @@ def main(config):
         
     # save torchsummary
     with open(res_path_rootdir + '/modelsummary.txt', 'w') as f:
-        f.write(summary(training_module['emo_net'], input_size=(config.batch_size, config.window_size, input_dim), verbose=0))
+        f.write(repr(summary(training_module['emo_net'].module, input_size=(config.batch_size, config.window_size, input_dim))))
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -235,7 +237,7 @@ if __name__ == '__main__':
     parser.add_argument('--kernel_size', nargs='*', type=int, default=None, help='kernel size')
     parser.add_argument('--stride', nargs='*', type=int, default=None, help='stride')
     parser.add_argument('--padding', nargs='*', type=int, default=None, help='padding')
-    parser.add_argument('--pool_type', type=str, default='avg', choices=['max', 'avg', 'att'], help='pooling type')
+    parser.add_argument('--pool_type', type=str, default='avg', choices=['max', 'avg'], help='pooling type')
     
     # training configuration
     parser.add_argument('--fold', type=int, default=0, help='fold number')

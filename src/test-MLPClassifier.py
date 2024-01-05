@@ -78,7 +78,7 @@ def main(config):
     if config.pool_type == 'att':
         attentive_pooling = EmotionEstimator.AttentivePooling(
             input_dim=input_dim,
-            hidden_dim=input_dim // 3
+            is_linear=True
         )
         
         attentive_pooling.load_state_dict(torch.load(model_path_dir + "/" + config.target_emo + "_" + 'attentive_pooling.pth'))

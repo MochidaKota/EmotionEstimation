@@ -1,4 +1,11 @@
 2023/12/01
 discomfort_labels_wsize{w_size}-ssize{s_size}.csv
-    正例：w_sizeの中に不快ラベルが5割以上含まれるシーケンス
+    不快ラベル->au, gaze, hpのor条件
+    正例：w_sizeの中に不快ラベルが5割以上含まれるシーケンス ※ws=30のときは全てが不快ラベルのシーケンス
+    負例：w_sizeの中に不快ラベルが全く含まれないシーケンス(明らかな負例)
+
+2023/12/24
+discomfort-{attribute}sign_labels_wsize{w_size}-ssize{s_size}.csv
+    不快ラベル->attributeのサイン出現の有無
+    正例：w_sizeの中に不快ラベルが5割以上含まれるシーケンス ※ws=30のときは全てが不快ラベルのシーケンス
     負例：w_sizeの中に不快ラベルが全く含まれないシーケンス(明らかな負例)

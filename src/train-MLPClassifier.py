@@ -99,7 +99,7 @@ def main(config):
     if config.pool_type == 'att':
         attentive_pooling = EmotionEstimator.AttentivePooling(
             input_dim=input_dim,
-            hidden_dim=input_dim // 3
+            is_linear=True
         )
         training_module['attentive_pooling'] = attentive_pooling
         
@@ -233,7 +233,7 @@ def main(config):
         
     # save torchsummary
     with open(res_path_rootdir + '/modelsummary.txt', 'w') as f:
-        f.write(summary(training_module['emo_net'], input_size=(config.batch_size, input_dim), verbose=0))
+        f.write(repr(summary(training_module['emo_net'], input_size=(config.batch_size, input_dim), verbose=0)))
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

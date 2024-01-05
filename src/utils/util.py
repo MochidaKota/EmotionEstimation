@@ -83,11 +83,12 @@ def get_sequence_list(video_name, window_size=30, shift_size=15, threshold=0.5, 
     label_df = pd.read_csv(label_path)
     label_df['video_name'], _ = zip(*label_df['img_path'].map(get_video_name_and_frame_num))
     
-    sequence_list = pd.DataFrame(columns=['img_path', 'emotion', 'positive_rate', 'negative_rate'])
+    sequence_list = pd.DataFrame(columns=['img_path', 'emotion', 'positive_rate', 'negative_rate', 'emotion_list'])
     head_img_paths = []
     emotions = []
     positive_rate = []
     negative_rate = []
+    emotion_lists = []
     
     video_df = label_df[label_df['video_name'] == video_name]
     video_df = video_df.reset_index(drop=True)
@@ -97,6 +98,7 @@ def get_sequence_list(video_name, window_size=30, shift_size=15, threshold=0.5, 
     while point + window_size <= len(video_df):
         head_img_paths.append(video_df['img_path'][point])
         _emotions = video_df['emotion'][point:point+window_size].tolist()
+        emotion_lists.append(_emotions)
         unique_values = list(set(_emotions))
         
         if len(unique_values) == 1:
@@ -123,6 +125,7 @@ def get_sequence_list(video_name, window_size=30, shift_size=15, threshold=0.5, 
     sequence_list['emotion'] = emotions
     sequence_list['positive_rate'] = positive_rate
     sequence_list['negative_rate'] = negative_rate
+    sequence_list['emotion_list'] = emotion_lists
     
     if drop_mixed:
         sequence_list = sequence_list[(sequence_list['positive_rate'] == 1.0) | (sequence_list['negative_rate'] == 1.0)]
