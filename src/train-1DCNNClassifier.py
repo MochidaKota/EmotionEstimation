@@ -3,10 +3,12 @@
 """
 
 import argparse
+from math import e
 import os
 import json
 import pandas as pd
 import time
+from balanced_loss import Loss
 
 import torch
 import torch.nn as nn
@@ -116,7 +118,23 @@ def main(config):
         )
     
     # define criterion
-    criterion = nn.CrossEntropyLoss()
+    
+    # criterion = None
+    # if config.weighted_loss == True:
+    #     class_samples = datasets['train'].get_class_sample_count()
+    #     class_weights = [1 - (x / sum(class_samples)) for x in class_samples]
+    #     class_weights = torch.tensor(class_weights, dtype=torch.float32).to(device)
+    #     criterion = nn.CrossEntropyLoss(weight=class_weights)
+    # else:
+    #     criterion = nn.CrossEntropyLoss()
+    
+    criterion = Loss(
+        loss_type=config.loss_type,
+        beta=config.beta,
+        fl_gamma=config.fl_gamma,
+        samples_per_class=datasets['train'].get_class_sample_count(),
+        class_balanced=config.class_balanced
+    )
     
     print()
     print(f"----- Start training... (fold{config.fold}) -----")
@@ -182,9 +200,13 @@ def main(config):
                     del feats, emotions, emo_net_outputs, preds
                     torch.cuda.empty_cache()
                 
-            # calc epoch loss and acc     
-            epoch_loss = running_loss / len(dataloaders[phase].dataset)
-            epoch_acc = running_corrects / len(dataloaders[phase].dataset)
+            # calc epoch loss and acc
+            if dataloaders[phase].dataset.__len__() == 0:
+                epoch_loss = 0.0
+                epoch_acc = 0.0
+            else: 
+                epoch_loss = running_loss / len(dataloaders[phase].dataset)
+                epoch_acc = running_corrects / len(dataloaders[phase].dataset)
             
             # store history
             if phase == "train":
@@ -244,6 +266,10 @@ if __name__ == '__main__':
     parser.add_argument('--gpu_id', type=str, default='0', help='gpu id')
     parser.add_argument('--batch_size', type=int, default=8, help='batch size')
     parser.add_argument('--optimizer', type=str, default='AdamW', choices=['Adam', 'AdamW'], help='optimizer')
+    parser.add_argument('--loss_type', type=str, default='cross_entropy', choices=['focal_loss', 'cross_entropy', 'binary_cross_entropy'], help='loss type')
+    parser.add_argument('--beta', type=float, default=0.999, help='class balanced loss beta')
+    parser.add_argument('--fl_gamma', type=float, default=2.0, help='focal loss gamma')
+    parser.add_argument('--class_balanced', type=str2bool, default=True, help='class balanced loss')
     parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--n_epochs', type=int, default=10, help='number of epochs')
     parser.add_argument('--check_test_loss', type=str2bool, default=True, help='check test loss or not')

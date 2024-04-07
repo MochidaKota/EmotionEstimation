@@ -76,7 +76,7 @@ def main(config):
     input_dim = 0
     if use_feat_list['AU'] == 1:
         input_dim = pd.read_pickle(config.au_feats_path).shape[1] - 1
-        emo_net = EmotionEstimator.AUStream()
+        emo_net = EmotionEstimator.AUStream(gpool_type=config.gpool_type, dropout=config.dropout)
     if use_feat_list['Gaze'] == 1:
         input_dim = pd.read_pickle(config.gaze_feats_path).shape[1] - 1
         emo_net = EmotionEstimator.GazeStream()
@@ -217,6 +217,8 @@ if __name__ == '__main__':
     parser.add_argument('--use_feat_list', nargs='*', type=int, required=True, help='select feature. 0:AU, 1:Gaze, 2:HP')
     parser.add_argument('--emo_num', type=int, default=2, help='number of emotion')
     parser.add_argument('--target_emo', type=str, default='comfort', choices=['comfort', 'discomfort'], help='target emotion')
+    parser.add_argument('--gpool_type', type=str, default='max', choices=['max', 'avg', 'att'], help='global pooling type')
+    parser.add_argument('--dropout', type=float, default=0.5, help='dropout rate')
     
     # training configuration
     parser.add_argument('--fold', type=int, default=0, help='fold number')

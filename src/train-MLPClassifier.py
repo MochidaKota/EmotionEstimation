@@ -99,7 +99,7 @@ def main(config):
     if config.pool_type == 'att':
         attentive_pooling = EmotionEstimator.AttentivePooling(
             input_dim=input_dim,
-            is_linear=True
+            pool_type=config.att_pool_type
         )
         training_module['attentive_pooling'] = attentive_pooling
         
@@ -164,7 +164,7 @@ def main(config):
                 elif config.pool_type == 'max':
                     feats = torch.max(feats, dim=1)[0]
                 elif config.pool_type == 'att':
-                    feats = training_module['attentive_pooling'](feats)
+                    feats, _ = training_module['attentive_pooling'](feats)
                 feats = feats.view(feats.size(0), -1)
                         
                 emotions = emotions.to(device)
@@ -248,6 +248,7 @@ if __name__ == '__main__':
     parser.add_argument('--hidden_dims', nargs='*', type=int, help='hidden dim for MLP')
     parser.add_argument('--dropout', type=float, default=0.1, help='dropout for MLP')
     parser.add_argument('--pool_type', type=str, default='avg', choices=['avg', 'max', 'att'], help='pooling type')
+    parser.add_argument('--att_pool_type', type=str, default='woLi', choices=['base', 'woLi', 'Li', 'MLP'], help='attention pooling type')
     
     # training configuration
     parser.add_argument('--fold', type=int, default=0, help='fold number')

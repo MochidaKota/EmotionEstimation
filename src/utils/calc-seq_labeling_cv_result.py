@@ -27,6 +27,8 @@ def main(config):
     emo_gt_list = list(itertools.chain(*pred["emo_gt"].tolist()))
     emo_pred_list = list(itertools.chain(*pred["emo_pred"].tolist()))
     emo_pos_list = list(itertools.chain(*pred["emo_pos"].tolist()))
+    seq_pred_list = pred["seq_pred"].tolist()
+    seq_gt_list = pred["seq_gt"].tolist()
     
     if config.target_emo == "comfort":
         # replace 2 to 0
@@ -55,7 +57,7 @@ def main(config):
     elif config.target_emo == 'discomfort':
         label_list = ['not discomfort', 'discomfort']
     emo_cm_df = pd.DataFrame(emo_cm, index=label_list, columns=label_list)
-    sns.heatmap(emo_cm_df, annot=True, cmap='Reds', fmt='g', annot_kws={"size": 10}, vmin=0, vmax=len(pred))
+    sns.heatmap(emo_cm_df, annot=True, cmap='Reds', fmt='g', annot_kws={"size": 10})
     plt.xlabel('Pred')
     plt.ylabel('GT')
     plt.tight_layout()
@@ -98,12 +100,17 @@ def main(config):
     report_mean = pd.DataFrame(report.mean()).T
     report_mean.index = ["mean"]
     report = pd.concat([report, report_mean], axis=0)
-    report.columns = ["precision", "recall", "f1", "accuracy", "roc_auc", "pr_auc"]
+    report.columns = ["precision", "recall", "f1", "accuracy", "roc_auc", "pr_auc", "seq_precision", "seq_recall", "seq_f1", "seq_accuracy"]
     report.to_csv(res_path_dir + f"/metrics(macro_avg).csv")
     
     # save metrics(sequence_avg)
-    seq_metrics = pd.DataFrame([pred["seq_precision"].mean(), pred["seq_recall"].mean(), pred["seq_f1"].mean()]).T
-    seq_metrics.columns = ["precision", "recall", "f1"]
+    seq_precision = precision_score(seq_gt_list, seq_pred_list)
+    seq_recall = recall_score(seq_gt_list, seq_pred_list)
+    seq_f1 = f1_score(seq_gt_list, seq_pred_list)
+    seq_acc = accuracy_score(seq_gt_list, seq_pred_list)
+    
+    seq_metrics = pd.DataFrame([seq_precision, seq_recall, seq_f1, seq_acc]).T
+    seq_metrics.columns = ["precision", "recall", "f1", "accuracy"]
     seq_metrics.to_csv(res_path_dir + f"/metrics(sequence_avg).csv", index=False)
     
     print()

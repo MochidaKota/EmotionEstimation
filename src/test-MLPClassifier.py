@@ -78,7 +78,7 @@ def main(config):
     if config.pool_type == 'att':
         attentive_pooling = EmotionEstimator.AttentivePooling(
             input_dim=input_dim,
-            is_linear=True
+            pool_type=config.att_pool_type
         )
         
         attentive_pooling.load_state_dict(torch.load(model_path_dir + "/" + config.target_emo + "_" + 'attentive_pooling.pth'))
@@ -103,12 +103,12 @@ def main(config):
             feats, img_paths, emotions = batch
                 
             feats = feats.to(device)    
-            if config.pool_type == 'ave':
+            if config.pool_type == 'avg':
                 feats = torch.mean(feats, dim=1)
             elif config.pool_type == 'max':
                 feats = torch.max(feats, dim=1)[0]
             elif config.pool_type == 'att':
-                feats = attentive_pooling(feats)
+                feats, _ = attentive_pooling(feats)
                 
             emo_temp_list += emotions.tolist()
             img_path_list += img_paths
@@ -213,7 +213,8 @@ if __name__ == '__main__':
     parser.add_argument('--batchnorm', type=str2bool, default=True, help='use batchnorm or not')
     parser.add_argument('--hidden_dims', nargs='*', type=int, help='hidden dim for MLP')
     parser.add_argument('--dropout', type=float, default=0.1, help='dropout for MLP')
-    parser.add_argument('--pool_type', type=str, default='mean', choices=['ave', 'max', 'att'], help='pooling type')
+    parser.add_argument('--pool_type', type=str, default='avg', choices=['avg', 'max', 'att'], help='pooling type')
+    parser.add_argument('--att_pool_type', type=str, default='woLi', choices=['base', 'woLi', 'Li', 'MLP'], help='attention pooling type')
     
     # test configration
     parser.add_argument('--fold', type=int, default=0, help='fold number')

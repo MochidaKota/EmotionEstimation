@@ -87,6 +87,9 @@ def main(config):
     img_path_list = []
     mid_feat_list = []
     
+    seq_pred_list = []
+    seq_gt_list = []
+    acc_list = []
     pre_list = []
     rec_list = []
     f1_list = []
@@ -110,6 +113,12 @@ def main(config):
             
             emo_pred = torch.round(emo_net_outputs)
             
+            acc = torch.sum(emo_pred == emo_lists).item() / (config.window_size * len(emo_lists))
+            
+            threshold = 0.5
+            seq_target = 1 if torch.sum(emo_lists) >= threshold * config.window_size else 0
+            seq_pred = 1 if torch.sum(emo_pred) >= threshold * config.window_size else 0
+            
             # save outputs
             gt = emo_lists.detach().cpu().numpy().tolist()
             pred = emo_pred.detach().cpu().numpy().tolist()
@@ -119,11 +128,14 @@ def main(config):
             emo_gt_list += gt
             emo_posterior_list += pos
             mid_feat_list += mid_feat.detach().cpu().numpy().tolist()
+            seq_pred_list.append(seq_pred)
+            seq_gt_list.append(seq_target)
             
             # calc sequence metrics
             pre_list.append(precision_score(gt, pred, average='micro', zero_division=0))
             rec_list.append(recall_score(gt, pred, average='micro', zero_division=0))
             f1_list.append(f1_score(gt, pred, average='micro', zero_division=0))
+            acc_list.append(acc)
         
             # release memory
             del feats, emo_lists, emo_net_outputs, mid_feat
@@ -160,11 +172,20 @@ def main(config):
     pre, rec, _ = precision_recall_curve(flt_gt_list, flt_posterior_list)
     pr_auc = auc(rec, pre)
     print("pr_auc:{}".format(pr_auc))
+    
+    seq_precision = precision_score(seq_gt_list, seq_pred_list, zero_division=0)
+    print("seq_precision:{}".format(seq_precision))
+    seq_recall = recall_score(seq_gt_list, seq_pred_list, zero_division=0)
+    print("seq_recall:{}".format(seq_recall))
+    seq_f1 = f1_score(seq_gt_list, seq_pred_list, zero_division=0)
+    print("seq_f1:{}".format(seq_f1))
+    seq_accuracy = accuracy_score(seq_gt_list, seq_pred_list)
+    print("seq_accuracy:{}".format(seq_accuracy))
      
     
     if config.save_res == True:
         # save each metrics
-        emo_clf_report_df = pd.DataFrame([[precision, recall, f1, accuracy, roc_auc, pr_auc]], columns=["precision", "recall", "f1", "accuracy", "roc_auc", "pr_auc"])
+        emo_clf_report_df = pd.DataFrame([[precision, recall, f1, accuracy, roc_auc, pr_auc, seq_precision, seq_recall, seq_f1, seq_accuracy]], columns=["precision", "recall", "f1", "accuracy", "roc_auc", "pr_auc", "seq_precision", "seq_recall", "seq_f1", "seq_accuracy"])
         emo_clf_report_df.to_csv(res_path_dir + "/" + f"{config.target_emo}_report.csv", index=False)
         
         # save confusion matrix
@@ -174,7 +195,7 @@ def main(config):
         elif config.target_emo == 'discomfort':
             label_list = ['not discomfort', 'discomfort']
         emo_cm_df = pd.DataFrame(emo_cm, index=label_list, columns=label_list)
-        sns.heatmap(emo_cm_df, annot=True, cmap='Reds', fmt='g', annot_kws={"size": 10}, vmin=0, vmax=len(emo_gt_list))
+        sns.heatmap(emo_cm_df, annot=True, cmap='Reds', fmt='g', annot_kws={"size": 10})
         plt.xlabel('Pred')
         plt.ylabel('GT')
         plt.title(f'{config.target_emo} Confusion Matrix in Fold{config.fold}')
@@ -185,8 +206,8 @@ def main(config):
         # save outputs
         pred_list = []
         for i in range(len(emo_pred_list)):
-            pred_list.append([emo_temp_list[i]] + [emo_pred_list[i]] + [emo_posterior_list[i]] + [pre_list[i]] + [rec_list[i]] + [f1_list[i]] + [img_path_list[i]])
-        pred_df = pd.DataFrame(pred_list, columns=["emo_gt","emo_pred", "emo_pos", "seq_precision", "seq_recall", "seq_f1", "img_path"])
+            pred_list.append([emo_temp_list[i]] + [emo_pred_list[i]] + [emo_posterior_list[i]] + [seq_gt_list[i]] + [seq_pred_list[i]] + [pre_list[i]] + [rec_list[i]] + [f1_list[i]] + [acc_list[i]] + [img_path_list[i]])
+        pred_df = pd.DataFrame(pred_list, columns=["emo_gt","emo_pred", "emo_pos", "seq_gt", "seq_pred", "seq_precision", "seq_recall", "seq_f1", "seq_accuracy", "img_path"])
         pred_df.to_csv(res_path_dir + "/" + f"{config.target_emo}_pred.csv", index=False)
         
     if config.save_feat == True:

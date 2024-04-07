@@ -390,45 +390,65 @@ class StreamMixer(nn.Module):
         return x
     
 class AUStream(nn.Module):
-    def __init__(self, num_classes=2, input_dim=12000, hidden_dim=128, hid_channels=[256, 512], dropout=0.1, kernel_size=5, is_maxpool=True):
+    def __init__(self, num_classes=2, input_dim=12000, hidden_dims=[2048, 512, 256, 128], gpool_type='avg', batchnorm=False, dropout=0.5):
         super(AUStream, self).__init__()
         
-        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        layers_1 = []
+        layers_1.append(nn.Linear(input_dim, hidden_dims[0]))
+        if batchnorm:
+            layers_1.append(nn.BatchNorm1d(hidden_dims[0]))
+        layers_1.append(nn.ReLU(inplace=True))
+        if dropout is not None:
+            layers_1.append(nn.Dropout(dropout))
         
-        self.conv1 = nn.Conv1d(hidden_dim, hid_channels[0], kernel_size=kernel_size)
-        self.bn1 = nn.BatchNorm1d(hid_channels[0])
-        self.conv2 = nn.Conv1d(hid_channels[0], hid_channels[1], kernel_size=kernel_size)
-        self.bn2 = nn.BatchNorm1d(hid_channels[1])
+        for i in range(1, len(hidden_dims)):
+            layers_1.append(nn.Linear(hidden_dims[i-1], hidden_dims[i]))
+            if batchnorm:
+                layers_1.append(nn.BatchNorm1d(hidden_dims[i]))
+            layers_1.append(nn.ReLU(inplace=True))
+            if dropout is not None:
+                layers_1.append(nn.Dropout(dropout))
+                
+        self.layers_1 = nn.Sequential(*layers_1)
         
-        self.gap = nn.AdaptiveAvgPool1d(1)
+        self.global_pooling = None
+        self.gpool_type = gpool_type
+        if gpool_type == 'avg':
+            self.global_pooling = nn.AdaptiveAvgPool1d(1)
+        elif gpool_type == 'max':
+            self.global_pooling = nn.AdaptiveMaxPool1d(1)
+        elif gpool_type == 'att':
+            self.global_pooling = AttentivePooling(input_dim=hidden_dims[-1], pool_type='woLi')
         
-        self.fc2 = nn.Linear(hid_channels[1], num_classes)
+        layers_2 = []
+        layers_2.append(nn.Linear(hidden_dims[-1], hidden_dims[-1] // 2))
+        if batchnorm:
+            layers_2.append(nn.BatchNorm1d(hidden_dims[-1] // 2))
+        layers_2.append(nn.ReLU(inplace=True))
+        if dropout is not None:
+            layers_2.append(nn.Dropout(dropout))
+            
+        layers_2.append(nn.Linear(hidden_dims[-1] // 2, num_classes))
+        self.layers_2 = nn.Sequential(*layers_2)
         
-        self.relu = nn.ReLU(inplace=True)
-        self.dropout = nn.Dropout(dropout)
-        self.is_maxpool = is_maxpool
-        self.maxpool = nn.MaxPool1d(kernel_size=3)
         
     def forward(self, x):
-        x = self.fc1(x)
+        # x: (batch_size, seq_len, input_dim)
         
-        x = x.transpose(1, 2)
+        x = self.layers_1(x)
         
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
-        if self.is_maxpool:
-            x = self.maxpool(x)
+        if self.gpool_type == 'att':
+            x, _ = self.global_pooling(x)
+        elif self.gpool_type == 'avg' or self.gpool_type == 'max':
+            x = x.transpose(1, 2)
+            x = self.global_pooling(x)
         
-        x = self.conv2(x)
-        x = self.bn2(x)
-        x = self.relu(x)
-    
-        x = self.gap(x)
         x = x.view(x.size(0), -1)
-        mid_feat = x
         
-        x = self.fc2(x)
+        for i, layer in enumerate(self.layers_2):
+            x = layer(x)
+            if i == len(self.layers_2) - 2:
+                mid_feat = x
         
         return x, mid_feat
     

@@ -7,23 +7,25 @@ import cv2
 from PIL import Image
 
 class JAANet_ImageTransform(object):
-    def __init__(self, phase='train'):
+    def __init__(self, phase='train', size=176, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
         self.phase = phase
+        self.size = size
+        self.mean = mean
+        self.std = std
     
     def __call__(self, img):
-        normalize = transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
         
         if self.phase == 'train':
             transform = transforms.Compose([
-                transforms.Resize(176),
+                transforms.Resize(self.size),
                 transforms.ToTensor(),
-                normalize
+                transforms.Normalize(mean=self.mean, std=self.std)
             ])
         else:
             transform = transforms.Compose([
-                transforms.Resize(176),
+                transforms.Resize(self.size),
                 transforms.ToTensor(),
-                normalize
+                transforms.Normalize(mean=self.mean, std=self.std)
             ])
         
         img = transform(img)

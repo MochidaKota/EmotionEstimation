@@ -79,9 +79,9 @@ def get_diff_img_path(current_img_path, distance):
     
     return img_path_list
 
-def get_sequence_list(video_name, window_size=30, shift_size=15, threshold=0.5, drop_mixed=False, label_path='/mnt/iot-qnap3/mochida/medical-care/emotionestimation/data/labels/PIMD_A/emo_and_au-gaze-hp(video1-25).csv'):
+def get_sequence_list(video_name, window_size=30, shift_size=15, threshold=0.5, drop_mixed=False, tail_padding=False, attribute='emotion', label_path='/mnt/iot-qnap3/mochida/medical-care/emotionestimation/data/labels/PIMD_A/emo_and_au-gaze-hp(video1-25).csv'):
     label_df = pd.read_csv(label_path)
-    label_df['video_name'], _ = zip(*label_df['img_path'].map(get_video_name_and_frame_num))
+    # label_df['video_name'], _ = zip(*label_df['img_path'].map(get_video_name_and_frame_num))
     
     sequence_list = pd.DataFrame(columns=['img_path', 'emotion', 'positive_rate', 'negative_rate', 'emotion_list'])
     head_img_paths = []
@@ -97,7 +97,7 @@ def get_sequence_list(video_name, window_size=30, shift_size=15, threshold=0.5, 
     
     while point + window_size <= len(video_df):
         head_img_paths.append(video_df['img_path'][point])
-        _emotions = video_df['emotion'][point:point+window_size].tolist()
+        _emotions = video_df[attribute][point:point+window_size].tolist()
         emotion_lists.append(_emotions)
         unique_values = list(set(_emotions))
         
@@ -120,12 +120,39 @@ def get_sequence_list(video_name, window_size=30, shift_size=15, threshold=0.5, 
             positive_rate.append(_emotions.count(unique_values[1]) / window_size)
             
         point += shift_size
+        
+    if tail_padding:
+        head_img_paths.append(video_df['img_path'][point])
+        _emotions = video_df[attribute][point:].tolist()
+        _emotions += [0] * (window_size - len(_emotions))
+        emotion_lists.append(_emotions)
+        unique_values = list(set(_emotions))
+        
+        if len(unique_values) == 1:
+            emotions.append(unique_values[0])
+            if unique_values[0] == 0:
+                negative_rate.append(1.0)
+                positive_rate.append(0.0)
+            else:
+                negative_rate.append(0.0)
+                positive_rate.append(1.0)
+        elif len(unique_values) == 2:
+            # more than threshold
+            if _emotions.count(unique_values[1]) / window_size >= threshold:
+                emotions.append(unique_values[1])
+            else:
+                emotions.append(unique_values[0])
+            
+            negative_rate.append(_emotions.count(unique_values[0]) / window_size)
+            positive_rate.append(_emotions.count(unique_values[1]) / window_size)
     
     sequence_list['img_path'] = head_img_paths
     sequence_list['emotion'] = emotions
     sequence_list['positive_rate'] = positive_rate
     sequence_list['negative_rate'] = negative_rate
     sequence_list['emotion_list'] = emotion_lists
+    
+    sequence_list['video_name'], sequence_list['frame_id'] = zip(*sequence_list['img_path'].map(get_video_name_and_frame_num))
     
     if drop_mixed:
         sequence_list = sequence_list[(sequence_list['positive_rate'] == 1.0) | (sequence_list['negative_rate'] == 1.0)]
@@ -162,13 +189,21 @@ def standardize_feature(feat_list):
 def convert_label_to_binary(labels, target_emo):
     '''
     Args:
-        labels: tensor
+        labels: tensor or series
         target_emo: str 'comfort' or 'discomfort'
     '''
-    if target_emo == 'comfort':
-        labels = torch.where(labels == 2, torch.tensor(0), labels)
-    elif target_emo == 'discomfort':
-        labels = torch.where(labels == 1, torch.tensor(0), labels)
-        labels = torch.where(labels == 2, torch.tensor(1), labels)
+    if type(labels) == torch.Tensor:
+        if target_emo == 'comfort':
+            labels = torch.where(labels == 2, torch.tensor(0), labels)
+        elif target_emo == 'discomfort':
+            labels = torch.where(labels == 1, torch.tensor(0), labels)
+            labels = torch.where(labels == 2, torch.tensor(1), labels)
+    
+    elif type(labels) == pd.core.series.Series:
+        if target_emo == 'comfort':
+            labels = labels.replace(2, 0)
+        elif target_emo == 'discomfort':
+            labels = labels.replace(1, 0)
+            labels = labels.replace(2, 1)
         
     return labels

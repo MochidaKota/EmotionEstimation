@@ -10,3 +10,8 @@ emo_and_au-gaze-hp(video1-25)_ver2.csv
     hp_pitch,roll,yaw：各画像を6DRepNetに入力したときの頭部ポーズ検出結果[degree]
     video_name：videoの名前
     frame_id：frameのindex
+
+2024/02/10
+video19にシーンの（大きめの）切り替わりがあるため分割-> video19, video26
+それにともなって，emo_and_au-gaze-hp-bls(video1-26)とJAANet_featureを更新
+更新前の各ふぁるはoldに格納
