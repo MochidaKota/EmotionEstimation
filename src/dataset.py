@@ -139,10 +139,10 @@ class SeqFeatList(Dataset):
     
 class SeqFeatList2(Dataset):
     #* return emotion_list
-    def __init__(self, labels_path, video_name_list, feats_path, window_size, attribute='emotion'):
+    def __init__(self, labels_path, video_name_list, feats_path, window_size, attribute='emotion_list'):
         self.img_paths = []
         #! format of DataFrame must be same as 'emo_and_au(video1-25).csv'
-        self.labels = pd.read_csv(labels_path)
+        self.labels = pd.read_csv(labels_path, converters={attribute: eval})
         #! format of DataFrame must be same as 'JAANet_feature.pkl'
         self.feats = pd.read_pickle(feats_path)
         
@@ -169,14 +169,15 @@ class SeqFeatList2(Dataset):
 
         # convert to tensor
         feat_list = []
-        emo_list = []
         for _img_path in img_path_list:
             feat_list.append(torch.tensor(filtered_feats.loc[_img_path].values, dtype=torch.float).unsqueeze(0))
-            emo_list.append(torch.tensor(self.labels[self.labels['img_path'] == _img_path][self.attribute].values, dtype=torch.long))
         
         # concat tensor
         feats = torch.cat(feat_list, dim=0)
-        emos = torch.cat(emo_list, dim=0)
+        
+        # get emotion list
+        emos = self.labels[self.labels['img_path'] == img_path][self.attribute].values[0]
+        emos = torch.tensor(emos, dtype=torch.float)
 
         return feats, img_path, emos
 

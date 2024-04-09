@@ -31,16 +31,14 @@ def main(config):
         labels_path=config.labels_path,
         video_name_list=get_video_name_list(config.video_name_list_path, config.fold, 'train'),
         feats_path=config.feats_path,
-        window_size=config.window_size,
-        attribute=config.attribute
+        window_size=config.window_size
     )
     
     testdataset = SeqFeatList2(
         labels_path=config.labels_path,
         video_name_list=get_video_name_list(config.video_name_list_path, config.fold, 'test'),
         feats_path=config.feats_path,
-        window_size=config.window_size,
-        attribute=config.attribute
+        window_size=config.window_size
     )
     
     trainloader = DataLoader(
@@ -71,9 +69,19 @@ def main(config):
             dropout=config.dropout,
             bidirectional=config.bidirectional
         ).to(device)
+    
+    elif config.arch == 'transformer':
+        model = EmotionEstimator.TransformerEncoderEstimator(
+            num_classes=config.num_classes,
+            d_model=input_dim,
+            num_heads=config.num_heads,
+            d_hid=config.hidden_dim,
+            num_layers=config.num_layers,
+            max_seq_len=config.window_size,
+            dropout=config.dropout
+        ).to(device)
         
     else:
-        #! unimplemented
         raise ValueError('Invalid model architecture')
         
     # optimizer
@@ -121,7 +129,7 @@ def main(config):
                 optimizer.zero_grad()
                 
                 with torch.set_grad_enabled(phase == 'train'):
-                    outputs, _ = model(feats)
+                    outputs = model(feats)
                     
                     outputs = outputs.view(-1, config.window_size)
                     
@@ -184,10 +192,11 @@ if __name__ == '__main__':
     parser.add_argument('--window_size', type=int, default=30, help='window size')
     parser.add_argument('--arch', type=str, default='lstm', choices=['lstm', 'transformer'], help='model architecture')
     parser.add_argument('--num_classes', type=int, default=1, help='number of emotion')
+    parser.add_argument('--num_heads', type=int, default=4, help='number of heads for transformer')
     parser.add_argument('--hidden_dim', type=int, default=128, help='hidden dimension')
     parser.add_argument('--num_layers', type=int, default=1, help='number of layers')
     parser.add_argument('--dropout', type=float, default=0, help='dropout rate')
-    parser.add_argument('--bidirectional', type=str2bool, default=False, help='bidirectional')
+    parser.add_argument('--bidirectional', type=str2bool, default=False, help='bidirectional for LSTM')
     
     parser.add_argument('--fold', type=int, default=0, help='fold number')
     parser.add_argument('--gpu_id', type=str, default='0', help='gpu id')

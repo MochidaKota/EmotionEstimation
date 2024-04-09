@@ -89,6 +89,27 @@ class TransformerClassifier(nn.Module):
         
         return x, mid_feat
     
+class TransformerEncoderEstimator(nn.Module):
+    def __init__(self, num_classes, d_model, num_heads, d_hid, num_layers, max_seq_len, dropout=0.1):
+        super(TransformerEncoderEstimator, self).__init__()
+        
+        self.pe = PositionalEncoding(d_model=d_model, max_seq_len=max_seq_len)
+        
+        self.encoder = nn.TransformerEncoder(
+            nn.TransformerEncoderLayer(d_model=d_model, nhead=num_heads, dim_feedforward=d_hid, dropout=dropout, batch_first=True),
+            num_layers=num_layers
+        )
+        
+        self.fc = nn.Linear(d_model, num_classes)
+        
+    def forward(self, x):
+        x = self.pe(x)
+        x = self.encoder(x)
+        x = self.fc(x)
+        
+        return x
+        
+    
 class MLPClassifier(nn.Module):
     def __init__(self, num_classes, input_dim, hidden_dims, activation='ReLU', dropout=0.1, batchnorm=True):
         super(MLPClassifier, self).__init__()
@@ -318,11 +339,9 @@ class LSTMClassifier(nn.Module):
         
         # x = x[:, -1, :]
         
-        mid_feat = x
-        
         x = self.fc(x)
         
-        return x , mid_feat
+        return x
     
 class StreamMixer(nn.Module):
     def __init__(self, feats_dim, num_feats, hidden_dims, dropout=0.1, activation='relu', batchnorm=True, is_binary=False):

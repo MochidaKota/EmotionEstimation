@@ -6,6 +6,7 @@ from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_sc
 from matplotlib import pyplot as plt
 import seaborn as sns
 import numpy as np
+import itertools
 
 def main(config):
     res_path_dir = config.res_path_prefix + config.run_name + '/' + f'epoch{config.target_epoch}'
@@ -36,19 +37,27 @@ def main(config):
         # replace 2 to 1
         gt_list = gt_list.replace(2, 1)
         
+    pred_list = pred["emo_pred"].copy()
+    pos_list = pred["emo_pos"].copy()
+    
+    if config.is_emolist:
+        gt_list = list(itertools.chain(*gt_list))
+        pred_list = list(itertools.chain(*pred_list))
+        pos_list = list(itertools.chain(*pos_list))
+        
     # culc metrics gt_list and pred["emo_pred"]
     # roc_auc, pr_auc is calculated by pred["emo_pos"]
-    acc = accuracy_score(gt_list, pred["emo_pred"])
-    precision = precision_score(gt_list, pred["emo_pred"])
-    recall = recall_score(gt_list, pred["emo_pred"])
-    f1 = f1_score(gt_list, pred["emo_pred"])
-    fpr, tpr, _ = roc_curve(gt_list, pred["emo_pos"])
+    acc = accuracy_score(gt_list, pred_list)
+    precision = precision_score(gt_list, pred_list)
+    recall = recall_score(gt_list, pred_list)
+    f1 = f1_score(gt_list, pred_list)
+    fpr, tpr, _ = roc_curve(gt_list, pred_list)
     roc_auc = auc(fpr, tpr)
-    pre, rec, _ = precision_recall_curve(gt_list, pred["emo_pos"])
+    pre, rec, _ = precision_recall_curve(gt_list, pos_list)
     pr_auc = auc(rec, pre)
     
     # save confusion matrix
-    emo_cm = confusion_matrix(gt_list, pred["emo_pred"])
+    emo_cm = confusion_matrix(gt_list, pred_list)
     if config.target_emo == 'comfort':
         label_list = ['not comfort', 'comfort']
     elif config.target_emo == 'discomfort':
@@ -110,6 +119,7 @@ if __name__ == "__main__":
     parser.add_argument("--run_name", type=str, default="default_run")
     parser.add_argument("--target_epoch", type=str, default="best")
     parser.add_argument("--target_emo", type=str, default="comfort")
+    parser.add_argument("--is_emolist", type=bool, default=False)
     
     config = parser.parse_args()
     
